@@ -1196,6 +1196,13 @@ These functions output UTF-8:
    :func:`json_set_alloc_funcs()` to override :func:`free()`, you should
    call your custom free function instead to free the return value.
 
+.. function:: char *json_dumps_ex(const json_t *json, size_t flags, size_t *size)
+
+   Same as :func:`json_dumps()` but returns the length of the sting. When passing 
+   *NULL*, is it the same as :func:`json_dumps()`.
+
+   .. versionadded:: 2.15
+
 .. function:: size_t json_dumpb(const json_t *json, char *buffer, size_t size, size_t flags)
 
    Writes the JSON representation of *json* to the *buffer* of

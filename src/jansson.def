@@ -56,6 +56,7 @@ EXPORTS
     json_object_key_to_iter
     json_object_seed
     json_dumps
+    json_dumps_ex
     json_dumpb
     json_dumpf
     json_dumpfd

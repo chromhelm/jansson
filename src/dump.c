@@ -423,6 +423,27 @@ static int do_dump(const json_t *json, size_t flags, int depth, hashtable_t *par
     }
 }
 
+char *json_dumps_ex(const json_t *json, size_t flags, size_t *size) {
+    strbuffer_t strbuff;
+    char *result;
+
+    if (strbuffer_init(&strbuff))
+        return NULL;
+
+    if (json_dump_callback(json, dump_to_strbuffer, (void *)&strbuff, flags))
+        result = NULL;
+    else
+    {
+        result = strbuffer_steal_value(&strbuff);
+        // Shut we shrink the memory to length ?
+    }
+
+    *size = strbuff.length;
+
+    strbuffer_close(&strbuff);
+    return result;
+}
+
 char *json_dumps(const json_t *json, size_t flags) {
     strbuffer_t strbuff;
     char *result;
@@ -433,7 +454,10 @@ char *json_dumps(const json_t *json, size_t flags) {
     if (json_dump_callback(json, dump_to_strbuffer, (void *)&strbuff, flags))
         result = NULL;
     else
-        result = jsonp_strdup(strbuffer_value(&strbuff));
+    {
+        result = strbuffer_steal_value(&strbuff);
+        // Shut we shrink the memory to length ?
+    }
 
     strbuffer_close(&strbuff);
     return result;

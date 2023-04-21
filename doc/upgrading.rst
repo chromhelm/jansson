@@ -62,7 +62,7 @@ List of Incompatible Changes
 **Maximum encoder indentation depth**
     The maximum argument of the ``JSON_INDENT()`` macro has been
     changed from 255 to 31, to free up bits from the ``flags``
-    parameter of :func:`json_dumps()`, :func:`json_dumpf()` and
+    parameter of :func:`json_dumps()`, :func:`json_dumps_ex()`, :func:`json_dumpf()` and
     :func:`json_dump_file()`. If your code uses a bigger indentation
     than 31, it needs to be changed.
 
