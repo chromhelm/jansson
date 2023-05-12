@@ -19,6 +19,7 @@
 #endif
 
 #include <jansson.h>
+#include <valgrind/callgrind.h>
 
 #define failhdr fprintf(stderr, "%s:%d: ", __FILE__, __LINE__)
 
@@ -86,7 +87,10 @@ int main() {
 #ifdef HAVE_SETLOCALE
     setlocale(LC_ALL, "");
 #endif
+    json_object_seed(0);
+    CALLGRIND_START_INSTRUMENTATION;
     run_tests();
+    CALLGRIND_STOP_INSTRUMENTATION;
     return 0;
 }
 
