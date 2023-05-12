@@ -178,6 +178,17 @@ enum json_error_code {
     json_error_index_out_of_range
 };
 
+const char* foreach_object_start(json_t* json);
+const char* foreach_object_start_n(json_t* json, size_t* key_len);
+json_t* foreach_object_test(const char* key);
+const char* foreach_object_next(json_t* object, const char* key);
+const char* foreach_object_next_n(json_t* object, const char* key, size_t* key_len);
+const char* foreach_object_start_safe(json_t* json, void** n);
+const char* foreach_object_next_safe(json_t* object, void** n);
+const char* foreach_object_start_safe_n(json_t* json, size_t* key_len, void** n);
+const char* foreach_object_next_safe_n(json_t* object, size_t* key_len, void** n);
+json_t* foreach_array_test(json_t* array, size_t index);
+
 static JSON_INLINE enum json_error_code json_error_code(const json_error_t *e) {
     return (enum json_error_code)e->text[JSON_ERROR_TEXT_LENGTH - 1];
 }
@@ -211,38 +222,30 @@ size_t json_object_iter_key_len(void *iter);
 json_t *json_object_iter_value(void *iter);
 int json_object_iter_set_new(json_t *object, void *iter, json_t *value);
 
-#define json_object_foreach(object, key, value)                                          \
-    for (key = json_object_iter_key(json_object_iter(object));                           \
-         key && (value = json_object_iter_value(json_object_key_to_iter(key)));          \
-         key = json_object_iter_key(                                                     \
-             json_object_iter_next(object, json_object_key_to_iter(key))))
+#define json_object_foreach(object, key, value)                                         \
+    for (key = foreach_object_start(object);                                            \
+         key && (value = foreach_object_test(key));                                     \
+         key = foreach_object_next(object, key))
 
-#define json_object_keylen_foreach(object, key, key_len, value)                          \
-    for (key = json_object_iter_key(json_object_iter(object)),                           \
-        key_len = json_object_iter_key_len(json_object_key_to_iter(key));                \
-         key && (value = json_object_iter_value(json_object_key_to_iter(key)));          \
-         key = json_object_iter_key(                                                     \
-             json_object_iter_next(object, json_object_key_to_iter(key))),               \
-        key_len = json_object_iter_key_len(json_object_key_to_iter(key)))
+#define json_object_keylen_foreach(object, key, key_len, value)                         \
+    for (key = foreach_object_start_n(object, &key_len);                                \
+         key && (value = foreach_object_test(key));                                     \
+         key = foreach_object_next_n(object, key, &key_len))
 
-#define json_object_foreach_safe(object, n, key, value)                                  \
-    for (key = json_object_iter_key(json_object_iter(object)),                           \
-        n = json_object_iter_next(object, json_object_key_to_iter(key));                 \
-         key && (value = json_object_iter_value(json_object_key_to_iter(key)));          \
-         key = json_object_iter_key(n),                                                  \
-        n = json_object_iter_next(object, json_object_key_to_iter(key)))
+#define json_object_foreach_safe(object, n, key, value)                                 \
+    for (key = foreach_object_start_safe(object, &n);                                   \
+         key && (value = foreach_object_test(key));                                     \
+         key = foreach_object_next_safe(object, &n))
 
-#define json_object_keylen_foreach_safe(object, n, key, key_len, value)                  \
-    for (key = json_object_iter_key(json_object_iter(object)),                           \
-        n = json_object_iter_next(object, json_object_key_to_iter(key)),                 \
-        key_len = json_object_iter_key_len(json_object_key_to_iter(key));                \
-         key && (value = json_object_iter_value(json_object_key_to_iter(key)));          \
-         key = json_object_iter_key(n), key_len = json_object_iter_key_len(n),           \
-        n = json_object_iter_next(object, json_object_key_to_iter(key)))
+#define json_object_keylen_foreach_safe(object, n, key, key_len, value)                 \
+    for (key = foreach_object_start_safe_n(object, &key_len, &n);                       \
+         key && (value = foreach_object_test(key));                                     \
+         key = foreach_object_next_safe_n(object, &key_len, &n))
 
-#define json_array_foreach(array, index, value)                                          \
-    for (index = 0;                                                                      \
-         index < json_array_size(array) && (value = json_array_get(array, index));       \
+#define json_array_foreach(array, index, value)                                         \
+    if(json_is_array(array))  \
+    for (index = 0;                                                                     \
+        (value = foreach_array_test(array, index));      \
          index++)
 
 static JSON_INLINE int json_object_set(json_t *object, const char *key, json_t *value) {

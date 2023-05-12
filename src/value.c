@@ -345,6 +345,144 @@ int json_object_iter_set_new(json_t *json, void *iter, json_t *value) {
     return 0;
 }
 
+const char* foreach_object_start(json_t* json)
+{
+    void* iter;
+
+    if(!json_is_object(json))
+        return NULL;
+
+    iter = hashtable_iter(&json_to_object(json)->hashtable);
+
+    if (!iter)
+        return NULL;
+
+    return hashtable_iter_key(iter);
+}
+
+const char* foreach_object_start_n(json_t* json, size_t* key_len)
+{
+    void* iter;
+
+    if (!json_is_object(json))
+        return NULL;
+
+    iter = hashtable_iter(&json_to_object(json)->hashtable);
+
+    if (!iter)
+        return NULL;
+
+    *key_len = hashtable_iter_key_len(iter);
+
+    return hashtable_iter_key(iter);
+}
+
+const char* foreach_object_start_safe(json_t* json, void** n)
+{
+    void* iter;
+
+    if (!json_is_object(json))
+        return NULL;
+
+    iter = hashtable_iter(&json_to_object(json)->hashtable);
+
+    if (!iter)
+        return NULL;
+
+    *n = hashtable_iter_next(&json_to_object(json)->hashtable, iter);
+
+    return hashtable_iter_key(iter);
+}
+
+const char* foreach_object_start_safe_n(json_t* json, size_t* key_len, void** n)
+{
+    void* iter;
+
+    if (!json_is_object(json))
+        return NULL;
+
+    iter = hashtable_iter(&json_to_object(json)->hashtable);
+
+    if (!iter)
+    {
+        *key_len = 0;
+        return NULL;
+    }
+
+    *n = hashtable_iter_next(&json_to_object(json)->hashtable, iter);
+
+    *key_len = hashtable_iter_key_len(iter);
+
+    return hashtable_iter_key(iter);;
+}
+
+json_t* foreach_object_test(const char* key)
+{
+    void* iter = hashtable_key_to_iter(key);
+
+    if(!iter)
+        return NULL;
+
+    return hashtable_iter_value(iter);
+}
+
+
+const char* foreach_object_next(json_t* object, const char* key)
+{
+    void* iter = hashtable_key_to_iter(key);
+
+    iter = hashtable_iter_next(&json_to_object(object)->hashtable, iter);
+
+    if (!iter)
+        return NULL;
+
+    return hashtable_iter_key(iter);
+}
+
+const char* foreach_object_next_n(json_t* object, const char* key, size_t* key_len)
+{
+    void* iter = hashtable_key_to_iter(key);
+
+    iter = hashtable_iter_next(&json_to_object(object)->hashtable, iter);
+
+    if (!iter)
+    {
+        *key_len = 0;
+        return NULL;
+    }
+
+    *key_len = hashtable_iter_key_len(iter);
+
+    return hashtable_iter_key(iter);
+}
+
+const char* foreach_object_next_safe(json_t* object, void** n)
+{
+    void* iter = *n;
+
+    if (!iter)
+        return NULL;
+
+    *n = hashtable_iter_next(&json_to_object(object)->hashtable, iter);
+
+    return hashtable_iter_key(iter);
+}
+
+const char* foreach_object_next_safe_n(json_t* object, size_t* key_len, void** n)
+{
+    void* iter = *n;
+
+    if (!iter)
+    {
+        *key_len = 0;
+        return NULL;
+    }
+
+    *key_len = hashtable_iter_key_len(iter);
+    *n = hashtable_iter_next(&json_to_object(object)->hashtable, iter);
+    return hashtable_iter_key(iter);
+}
+
 void *json_object_key_to_iter(const char *key) {
     if (!key)
         return NULL;
@@ -496,6 +634,13 @@ int json_array_set_new(json_t *json, size_t index, json_t *value) {
     array->table[index] = value;
 
     return 0;
+}
+
+json_t* foreach_array_test(json_t* array, size_t index)
+{
+    if(index < json_to_array(array)->entries)
+        return json_to_array(array)->table[index];
+    return NULL;
 }
 
 static void array_move(json_array_t *array, size_t dest, size_t src, size_t count) {
