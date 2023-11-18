@@ -1,0 +1,4 @@
+{
+    "cmake.configureOnOpen": true,
+    "coverage-gutters.manualCoverageFilePaths": ["/home/wilhelm/projects/jansson/coverage.info"]
+}
