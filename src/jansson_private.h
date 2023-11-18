@@ -11,6 +11,7 @@
 #include "hashtable.h"
 #include "jansson.h"
 #include "jansson_private_config.h"
+#include "ringbuffer.h"
 #include "strbuffer.h"
 #include <stddef.h>
 
@@ -44,9 +45,7 @@ typedef struct {
 
 typedef struct {
     json_t json;
-    size_t size;
-    size_t entries;
-    json_t **table;
+    ringbuffer_t ringbuffer;
 } json_array_t;
 
 typedef struct {

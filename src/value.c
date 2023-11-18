@@ -25,6 +25,7 @@
 #include "hashtable.h"
 #include "jansson.h"
 #include "jansson_private.h"
+#include "ringbuffer.h"
 #include "utf.h"
 
 /* Work around nonstandard isnan() and isinf() implementations */
@@ -433,26 +434,13 @@ json_t *json_array(void) {
     if (!array)
         return NULL;
     json_init(&array->json, JSON_ARRAY);
-
-    array->entries = 0;
-    array->size = 8;
-
-    array->table = jsonp_malloc(array->size * sizeof(json_t *));
-    if (!array->table) {
-        jsonp_free(array);
-        return NULL;
-    }
+    ringbuffer_init(&array->ringbuffer);
 
     return &array->json;
 }
 
 static void json_delete_array(json_array_t *array) {
-    size_t i;
-
-    for (i = 0; i < array->entries; i++)
-        json_decref(array->table[i]);
-
-    jsonp_free(array->table);
+    ringbuffer_close(&array->ringbuffer);
     jsonp_free(array);
 }
 
@@ -460,24 +448,17 @@ size_t json_array_size(const json_t *json) {
     if (!json_is_array(json))
         return 0;
 
-    return json_to_array(json)->entries;
+    return json_to_array(json)->ringbuffer.elementCount;
 }
 
 json_t *json_array_get(const json_t *json, size_t index) {
-    json_array_t *array;
     if (!json_is_array(json))
         return NULL;
-    array = json_to_array(json);
 
-    if (index >= array->entries)
-        return NULL;
-
-    return array->table[index];
+    return ringbuffer_get(&json_to_array(json)->ringbuffer, index);
 }
 
 int json_array_set_new(json_t *json, size_t index, json_t *value) {
-    json_array_t *array;
-
     if (!value)
         return -1;
 
@@ -485,52 +466,16 @@ int json_array_set_new(json_t *json, size_t index, json_t *value) {
         json_decref(value);
         return -1;
     }
-    array = json_to_array(json);
 
-    if (index >= array->entries) {
+    if (ringbuffer_set(&json_to_array(json)->ringbuffer, index, value)) {
         json_decref(value);
         return -1;
     }
-
-    json_decref(array->table[index]);
-    array->table[index] = value;
 
     return 0;
 }
 
-static void array_move(json_array_t *array, size_t dest, size_t src, size_t count) {
-    memmove(&array->table[dest], &array->table[src], count * sizeof(json_t *));
-}
-
-static void array_copy(json_t **dest, size_t dpos, json_t **src, size_t spos,
-                       size_t count) {
-    memcpy(&dest[dpos], &src[spos], count * sizeof(json_t *));
-}
-
-static json_t **json_array_grow(json_array_t *array, size_t amount) {
-    size_t new_size;
-    json_t **old_table, **new_table;
-
-    if (array->entries + amount <= array->size)
-        return array->table;
-
-    old_table = array->table;
-
-    new_size = max(array->size + amount, array->size * 2);
-    new_table = jsonp_realloc(old_table, array->size * sizeof(json_t *),
-                            new_size * sizeof(json_t *));
-    if (!new_table)
-        return NULL;
-
-    array->size = new_size;
-    array->table = new_table;
-
-    return array->table;
-}
-
 int json_array_append_new(json_t *json, json_t *value) {
-    json_array_t *array;
-
     if (!value)
         return -1;
 
@@ -538,22 +483,16 @@ int json_array_append_new(json_t *json, json_t *value) {
         json_decref(value);
         return -1;
     }
-    array = json_to_array(json);
 
-    if (!json_array_grow(array, 1)) {
+    if (ringbuffer_append(&json_to_array(json)->ringbuffer, value)) {
         json_decref(value);
         return -1;
     }
-
-    array->table[array->entries] = value;
-    array->entries++;
 
     return 0;
 }
 
 int json_array_insert_new(json_t *json, size_t index, json_t *value) {
-    json_array_t *array;
-
     if (!value)
         return -1;
 
@@ -561,81 +500,47 @@ int json_array_insert_new(json_t *json, size_t index, json_t *value) {
         json_decref(value);
         return -1;
     }
-    array = json_to_array(json);
 
-    if (index > array->entries) {
+    if (ringbuffer_insert(&json_to_array(json)->ringbuffer, index, value)) {
         json_decref(value);
         return -1;
     }
-
-    if (!json_array_grow(array, 1)) {
-        json_decref(value);
-        return -1;
-    }
-    if (index != array->entries)
-        array_move(array, index + 1, index, array->entries - index);
-
-    array->table[index] = value;
-    array->entries++;
 
     return 0;
 }
 
 int json_array_remove(json_t *json, size_t index) {
-    json_array_t *array;
-
     if (!json_is_array(json))
         return -1;
-    array = json_to_array(json);
 
-    if (index >= array->entries)
-        return -1;
-
-    json_decref(array->table[index]);
-
-    /* If we're removing the last element, nothing has to be moved */
-    if (index < array->entries - 1)
-        array_move(array, index, index + 1, array->entries - index - 1);
-
-    array->entries--;
-
-    return 0;
+    return ringbuffer_del(&json_to_array(json)->ringbuffer, index);
 }
 
 int json_array_clear(json_t *json) {
-    json_array_t *array;
-    size_t i;
-
     if (!json_is_array(json))
         return -1;
-    array = json_to_array(json);
 
-    for (i = 0; i < array->entries; i++)
-        json_decref(array->table[i]);
+    ringbuffer_clear(&json_to_array(json)->ringbuffer);
 
-    array->entries = 0;
     return 0;
 }
 
 int json_array_extend(json_t *json, json_t *other_json) {
-    json_array_t *array, *other;
+    int result;
     size_t i;
 
     if (!json_is_array(json) || !json_is_array(other_json))
         return -1;
-    array = json_to_array(json);
-    other = json_to_array(other_json);
 
-    if (!json_array_grow(array, other->entries))
-        return -1;
+    result = ringbuffer_append_ringbuffer(&json_to_array(json)->ringbuffer,
+                                          &json_to_array(other_json)->ringbuffer);
 
-    for (i = 0; i < other->entries; i++)
-        json_incref(other->table[i]);
+    if (result == 0) {
+        for (i = 0; i < json_to_array(other_json)->ringbuffer.elementCount; i++)
+            json_incref(ringbuffer_get(&json_to_array(other_json)->ringbuffer, i));
+    }
 
-    array_copy(array->table, array->entries, other->table, 0, other->entries);
-
-    array->entries += other->entries;
-    return 0;
+    return result;
 }
 
 static int json_array_equal(const json_t *array1, const json_t *array2) {
