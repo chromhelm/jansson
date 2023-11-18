@@ -9,6 +9,8 @@ libjansson_la_SOURCES = \
 	error.c \
 	hashtable.c \
 	hashtable.h \
+	ringbuffer.c \
+	ringbuffer.h \
 	hashtable_seed.c \
 	jansson_private.h \
 	load.c \

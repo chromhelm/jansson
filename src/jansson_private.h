@@ -22,6 +22,11 @@
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #endif
 
+/* On some platforms, min() may already be defined */
+#ifndef min
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
 /* va_copy is a C99 feature. In C89 implementations, it's sometimes
    available as __va_copy. If not, memcpy() should do the trick. */
 #ifndef va_copy

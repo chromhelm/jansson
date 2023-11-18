@@ -288,6 +288,7 @@ file(GLOB JANSSON_SRC src/*.c)
 
 set(JANSSON_HDR_PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/src/hashtable.h
+   ${CMAKE_CURRENT_SOURCE_DIR}/src/ringbuffer.h
    ${CMAKE_CURRENT_SOURCE_DIR}/src/jansson_private.h
    ${CMAKE_CURRENT_SOURCE_DIR}/src/strbuffer.h
    ${CMAKE_CURRENT_SOURCE_DIR}/src/utf.h
