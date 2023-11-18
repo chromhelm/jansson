@@ -6,6 +6,7 @@
  */
 
 #include "util.h"
+#include <assert.h>
 #include <jansson.h>
 
 static void test_misc(void) {
@@ -257,6 +258,82 @@ static void test_remove(void) {
     json_decref(array);
 }
 
+static void test_ringbuffer(void) {
+    json_t *array;
+    int i;
+
+    // clang-format off
+    int testValuesAdd[][3] = {
+    //   +  Command, 0=insert, 1 = remove
+    //   |  + Position to add/remove at
+    //   |  |  + Value to add
+    //   V  V  V
+        {0, 0, 4}, // 0
+        {0, 1, 6}, // 1
+        {0, 1, 5}, // 2
+        {0, 3, 7}, // 3
+        {0, 0, 0}, // 4
+        {0, 1, 1}, // 5
+        {0, 2, 2}, // 6
+        {0, 3, 3}, // 7
+        {1, 7, 0}, // 8
+        {1, 0, 0}, // 9
+        {1, 4, 0}, // 10
+        {1, 1, 0}, // 11
+    };
+
+    int arrayStates[][9] = {
+    //   + Array size
+    //   V
+        {1, 4},                      // 0
+        {2, 4, 6},                   // 1
+        {3, 4, 5, 6},                // 2
+        {4, 4, 5, 6, 7},             // 3
+        {5, 0, 4, 5, 6, 7},          // 4
+        {6, 0, 1, 4, 5, 6, 7},       // 5
+        {7, 0, 1, 2, 4, 5, 6, 7},    // 6
+        {8, 0, 1, 2, 3, 4, 5, 6, 7}, // 7
+        {7, 0, 1, 2, 3, 4, 5, 6},    // 8
+        {6, 1, 2, 3, 4, 5, 6},       // 9
+        {5, 1, 2, 3, 4, 6},          // 10
+        {4, 1, 3, 4, 6},             // 11
+    };
+    // clang-format on
+
+    static_assert((sizeof(testValuesAdd) / sizeof(*testValuesAdd)) ==
+                  (sizeof(arrayStates) / sizeof(*arrayStates)));
+
+    const int COMMAND_COUNT = sizeof(testValuesAdd) / sizeof(*testValuesAdd);
+
+    array = json_array();
+
+    for (i = 0; i < COMMAND_COUNT; i++) {
+        if (testValuesAdd[i][0] == 0) {
+            json_array_insert_new(array, testValuesAdd[i][1],
+                                  json_integer(testValuesAdd[i][2]));
+        } else if (testValuesAdd[i][0] == 1) {
+            json_array_remove(array, testValuesAdd[i][1]);
+        }
+
+        if ((int)json_array_size(array) != arrayStates[i][0]) {
+            fprintf(stderr, "expected %d got %zd \n", arrayStates[i][0],
+                    json_array_size(array));
+            fail("unable to append items to array");
+        }
+
+        for (int j = 0; j < arrayStates[i][0]; j++) {
+            int value = json_integer_value(json_array_get(array, j));
+            if (value != arrayStates[i][1 + j]) {
+                fprintf(stderr, "expected %d got %d  i:%d j:%d\n", arrayStates[i][1 + j],
+                        value, i, j);
+                fail("wrong value readback");
+            }
+        }
+    }
+
+    json_decref(array);
+}
+
 static void test_clear(void) {
     json_t *array, *five, *seven;
     int i;
@@ -481,4 +558,5 @@ static void run_tests() {
     test_circular();
     test_array_foreach();
     test_bad_args();
+    test_ringbuffer();
 }
