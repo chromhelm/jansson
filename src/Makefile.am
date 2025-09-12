@@ -6,6 +6,7 @@ nodist_include_HEADERS = jansson_config.h
 lib_LTLIBRARIES = libjansson.la
 libjansson_la_SOURCES = \
 	dump.c \
+	jeaiii_to_text.c \
 	error.c \
 	hashtable.c \
 	hashtable.h \

@@ -5,6 +5,7 @@ LOCAL_ARM_MODE := arm
 
 LOCAL_SRC_FILES := \
     src/dump.c \
+    src/jeaiii_to_text.c \
     src/error.c \
     src/hashtable.c \
     src/hashtable_seed.c \

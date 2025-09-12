@@ -22,6 +22,7 @@
 #include "jansson.h"
 #include "strbuffer.h"
 #include "utf.h"
+#include "jeaiii_to_text.h"
 
 #define MAX_INTEGER_STR_LENGTH 25
 #define MAX_REAL_STR_LENGTH    25
@@ -233,13 +234,7 @@ static int do_dump(const json_t *json, size_t flags, int depth, hashtable_t *par
 
         case JSON_INTEGER: {
             char buffer[MAX_INTEGER_STR_LENGTH];
-            int size;
-
-            size = snprintf(buffer, MAX_INTEGER_STR_LENGTH, "%" JSON_INTEGER_FORMAT,
-                            json_integer_value(json));
-            if (size < 0 || size >= MAX_INTEGER_STR_LENGTH)
-                return -1;
-
+            int size = to_text_from_integer(buffer, json_integer_value(json)) - buffer;
             return dump(buffer, size, data);
         }
 
