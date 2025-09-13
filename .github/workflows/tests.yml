@@ -19,6 +19,7 @@ jobs:
         os: ["ubuntu-latest", "macos-latest"]
         cc: ["gcc", "clang"]
         dtoa: ["yes", "no"]
+        dragonbox: ["yes", "no"]
 
     runs-on: ${{ matrix.os }}
 
@@ -30,7 +31,7 @@ jobs:
       - env:
           CC: ${{ matrix.cc }}
           CFLAGS: -Werror
-        run: ./configure --enable-dtoa=${{ matrix.dtoa }}
+        run: ./configure --enable-dtoa=${{ matrix.dtoa }} --enable-dragonbox=${{ matrix.dragonbox }}
       - run: make check
 
   cmake:

@@ -9,6 +9,10 @@ dtoa_enabled() {
     grep -q "DTOA_ENABLED 1" $top_builddir/jansson_private_config.h
 }
 
+dragonbox_enabled() {
+    grep -q "DRAGONBOX_ENABLED 1" $top_builddir/jansson_private_config.h
+}
+
 is_test() {
     test -d $test_path
 }
@@ -19,6 +23,12 @@ do_run() {
     fi
     if [ -f $test_path/skip_if_dtoa ]; then
         dtoa_enabled && return 77
+    fi
+    if [ -f $test_path/skip_unless_dragonbox ]; then
+        dragonbox_enabled || return 78
+    fi
+    if [ -f $test_path/skip_if_dragonbox ]; then
+        dragonbox_enabled && return 78
     fi
 
     variant=$1

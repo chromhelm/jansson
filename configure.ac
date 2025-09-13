@@ -151,6 +151,20 @@ if test "$dtoa" = "yes"; then
 fi
 AM_CONDITIONAL([DTOA_ENABLED], [test "$dtoa" = "yes"])
 
+AC_ARG_ENABLE([dragonbox],
+  [AS_HELP_STRING([--enable-dragonbox], [Use dragonbox for optimal floating point to string conversion])],
+  [case "$enableval" in
+    yes) dragonbox=yes ;;
+    no)  dragonbox=no ;;
+    *) AC_MSG_ERROR([bad value ${enableval} for --enable-dragonbox]) ;;
+  esac], [dragonbox=yes])
+if test "$dragonbox" = "yes"; then
+  AC_DEFINE([DRAGONBOX_ENABLED], [1],
+      [Define to 1 to use dragonbox to convert floating points to strings])
+fi
+AM_CONDITIONAL([DRAGONBOX_ENABLED], [test "$dragonbox" = "yes"])
+
+
 AC_ARG_ENABLE([ossfuzzers],
   [AS_HELP_STRING([--enable-ossfuzzers],
     [Whether to generate the fuzzers for OSS-Fuzz])],

@@ -61,7 +61,154 @@ int jsonp_strtod(strbuffer_t *strbuffer, double *out) {
     return 0;
 }
 
-#if DTOA_ENABLED
+#if DRAGONBOX_ENABLED
+#include "dragonbox.h"
+#include "jeaiii_to_text.h"
+
+// @AShelly https://godbolt.org/z/cqeKEj4rj
+inline static uint8_t digits_u64(const uint64_t number) noexcept
+{
+    static const uint8_t maxdigits[65] = {
+        1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 6, 6, 6,
+        7, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11,
+        12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 15, 15, 15,
+        16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20, 
+    };
+
+    static const uint64_t powers[21] = {
+    0U,
+    1U,
+    10U,
+    100U,
+    1000U,
+    10000U,
+    100000U,
+    1000000U,
+    10000000U,
+    100000000U,
+    1000000000U,
+    10000000000U,
+    100000000000U,
+    1000000000000U,
+    10000000000000U,
+    100000000000000U,
+    1000000000000000U,
+    10000000000000000U,
+    100000000000000000U,
+    1000000000000000000U,
+    10000000000000000000U,
+};
+
+    if (number == 0) {
+        return 1;
+    }
+
+    {
+        const uint8_t zero_count = std::countl_zero(number); // or __builtin_clzll(number)
+        const uint8_t bits = sizeof(number) * CHAR_BIT - zero_count; 
+        uint8_t digits = maxdigits[bits];
+
+        if (number < powers[digits]) {
+            --digits;
+        }
+        
+        return digits;
+    }
+}
+
+int jsonp_dtostr(char *buffer, size_t size, double value, int precision) {
+    // we know that size is always 28, so dont check position
+    char *pos = buffer;
+    
+    if (precision <= 0)
+    precision = 17;
+    
+    if (value == 0.0) {
+        memcpy(buffer, "0.0", 3);
+        return 3;
+    }
+    
+    decimal_fp c = dragonbox_to_decimal(value);
+    
+    uint8_t significantCount = digits_u64(c.significand);
+
+    // round to precision
+    if (significantCount > precision) {
+        const uint8_t precision_diff = significantCount - precision;
+        const uint64_t divisor = potency_table[precision_diff];
+        const uint8_t round_up_value = ((c.significand % divisor) >= (divisor / 2)) ? 1 : 0;
+        c.significand /= divisor;
+        c.significand += round_up_value;
+        c.exponent += precision_diff;
+        significantCount = digits_u64(c.significand);
+    }
+
+    if (value < 0)
+        *pos++ = '-';
+
+    c.exponent += significantCount - 1;
+
+    if (c.exponent == 0) {
+        // exp == 0
+        char * const numberStart = pos;
+        pos = to_text_from_integer(pos + 1, c.significand);
+        numberStart[0] = numberStart[1];
+        numberStart[1] = '.';
+        if (pos - numberStart > 2)
+        {
+            while (pos[-1] == '0' && pos[-2] != '.')
+                pos--;
+        } else {
+            *pos++ = '0';
+        }
+    } else if (c.exponent <= -5 || c.exponent >= precision) {
+        // exp < -5 || exp >= precision
+        char * const numberStart = pos;
+        pos = to_text_from_integer(pos + 1, c.significand);
+        numberStart[0] = numberStart[1];
+        if (pos - numberStart > 1) {
+            numberStart[1] = '.';
+            while (pos[-1] == '0' || pos[-1] == '.')
+                pos--;
+        }
+        *pos++ = 'e';
+        pos = to_text_from_integer(pos, c.exponent);
+    } else if (c.exponent < 0) {
+        //  -5 <= exp < 0
+        const uint8_t prependZeros = (-c.exponent) + 1;
+        memset(pos, '0', prependZeros);
+        pos[1] = '.';
+        pos = to_text_from_integer(pos + prependZeros, c.significand);
+        while (pos[-1] == '0')
+            pos--;
+    } else {
+        // 0 < exp <= precision
+        char * const numberStart = pos;
+        pos = to_text_from_integer(pos, c.significand);
+        const uint8_t len = pos - numberStart;
+        const uint8_t decimalPointPosition = c.exponent + 1;
+        if (decimalPointPosition == len) {
+            *pos++ = '.';
+            *pos++ = '0';
+        } else if (decimalPointPosition > len) {
+            const uint8_t appendZeros = decimalPointPosition - len;
+            memset(pos, '0', appendZeros + 2);
+            pos[appendZeros] = '.';
+            pos += appendZeros + 2;
+        } else {
+            // len > decimalPointPosition
+            memmove(numberStart + decimalPointPosition + 1,
+                    numberStart + decimalPointPosition, len - decimalPointPosition);
+            numberStart[decimalPointPosition] = '.';
+            pos++;
+            while (pos[-1] == '0' && pos[-2] != '.')
+                pos--;
+        }
+    }
+
+    return pos - buffer;
+}
+#elif DTOA_ENABLED
 /* see dtoa.c */
 char *dtoa_r(double dd, int mode, int ndigits, int *decpt, int *sign, char **rve,
              char *buf, size_t blen);

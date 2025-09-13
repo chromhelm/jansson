@@ -5,7 +5,8 @@ project(jansson C)
 option(JANSSON_BUILD_SHARED_LIBS "Build shared libraries." OFF)
 option(USE_URANDOM "Use /dev/urandom to seed the hash function." ON)
 option(USE_WINDOWS_CRYPTOAPI "Use CryptGenRandom to seed the hash function." ON)
-option(USE_DTOA "Use dtoa for optimal floating-point to string conversions." ON)
+option(USE_DTOA "Use dtoa for optimal floating-point to string conversions." OFF)
+option(USE_DRAGONBOX "Use dragonbox for optimal floating-point to string conversions." ON)
 
 if (MSVC)
    # This option must match the settings used in your program, in particular if you
@@ -280,6 +281,9 @@ file(GLOB JANSSON_SRC src/*.c)
 if (NOT USE_DTOA)
    list(FILTER JANSSON_SRC EXCLUDE REGEX ".*dtoa\\.c$")
 endif()
+if (NOT USE_DRAGONBOX)
+   list(FILTER JANSSON_SRC EXCLUDE REGEX ".*dragonbox\\.c$")
+endif()
 
 set(JANSSON_HDR_PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/src/hashtable.h
@@ -550,6 +554,11 @@ if (NOT JANSSON_WITHOUT_TESTS)
 
             if ((USE_DTOA AND EXISTS ${TESTDIR}/skip_if_dtoa) OR
                 (NOT USE_DTOA AND EXISTS ${TESTDIR}/skip_unless_dtoa))
+               continue()
+            endif()
+
+            if ((USE_DRAGONBOX AND EXISTS ${TESTDIR}/skip_if_dragonbox) OR
+                (NOT USE_DRAGONBOX AND EXISTS ${TESTDIR}/skip_unless_dragonbox))
                continue()
             endif()
 
