@@ -4,7 +4,14 @@
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
+#include <limits.h>
 #include <string.h>
+#include <stdint.h>
+
+#if __STDC_VERSION__ >= 202311L
+#include <stdbit.h>
+#endif
+
 
 /* need jansson_private_config.h to get the correct snprintf */
 #ifdef HAVE_CONFIG_H
@@ -66,7 +73,7 @@ int jsonp_strtod(strbuffer_t *strbuffer, double *out) {
 #include "jeaiii_to_text.h"
 
 // @AShelly https://godbolt.org/z/cqeKEj4rj
-inline static uint8_t digits_u64(const uint64_t number) noexcept
+inline static uint8_t digits_u64(const uint64_t number)
 {
     static const uint8_t maxdigits[65] = {
         1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 6, 6, 6,
@@ -76,27 +83,27 @@ inline static uint8_t digits_u64(const uint64_t number) noexcept
     };
 
     static const uint64_t powers[21] = {
-    0U,
-    1U,
-    10U,
-    100U,
-    1000U,
-    10000U,
-    100000U,
-    1000000U,
-    10000000U,
-    100000000U,
-    1000000000U,
-    10000000000U,
-    100000000000U,
-    1000000000000U,
-    10000000000000U,
-    100000000000000U,
-    1000000000000000U,
-    10000000000000000U,
-    100000000000000000U,
-    1000000000000000000U,
-    10000000000000000000U,
+        UINT64_C(0),
+        UINT64_C(1),
+        UINT64_C(10),
+        UINT64_C(100),
+        UINT64_C(1000),
+        UINT64_C(10000),
+        UINT64_C(100000),
+        UINT64_C(1000000),
+        UINT64_C(10000000),
+        UINT64_C(100000000),
+        UINT64_C(1000000000),
+        UINT64_C(10000000000),
+        UINT64_C(100000000000),
+        UINT64_C(1000000000000),
+        UINT64_C(10000000000000),
+        UINT64_C(100000000000000),
+        UINT64_C(1000000000000000),
+        UINT64_C(10000000000000000),
+        UINT64_C(100000000000000000),
+        UINT64_C(1000000000000000000),
+        UINT64_C(10000000000000000000),
 };
 
     if (number == 0) {
@@ -104,7 +111,24 @@ inline static uint8_t digits_u64(const uint64_t number) noexcept
     }
 
     {
-        const uint8_t zero_count = std::countl_zero(number); // or __builtin_clzll(number)
+        const uint8_t zero_count = 
+#if __STDC_VERSION__ >= 202311L
+        #if ULONG_MAX == 0xfffffffffffffffful
+            stdc_leading_zeros_ul(number);
+        #elif ULONG_LONG_MAX == 0xfffffffffffffffful
+            stdc_leading_zeros_ull(number);
+        else
+            #error "data with not detected"
+        #endif
+#else
+        #if ULONG_MAX == 0xfffffffffffffffful
+            __builtin_clzl(number);
+        #elif ULONG_LONG_MAX == 0xfffffffffffffffful
+            __builtin_clzll(number);
+        else
+            #error "data with not detected"
+        #endif
+#endif
         const uint8_t bits = sizeof(number) * CHAR_BIT - zero_count; 
         uint8_t digits = maxdigits[bits];
 
@@ -117,20 +141,46 @@ inline static uint8_t digits_u64(const uint64_t number) noexcept
 }
 
 int jsonp_dtostr(char *buffer, size_t size, double value, int precision) {
-    // we know that size is always 28, so dont check position
+    static const uint64_t potency_table[] = {
+        UINT64_C(1),
+        UINT64_C(10),
+        UINT64_C(100),
+        UINT64_C(1000),
+        UINT64_C(10000),
+        UINT64_C(100000),
+        UINT64_C(1000000),
+        UINT64_C(10000000),
+        UINT64_C(100000000),
+        UINT64_C(1000000000),
+        UINT64_C(10000000000),
+        UINT64_C(100000000000),
+        UINT64_C(1000000000000),
+        UINT64_C(10000000000000),
+        UINT64_C(100000000000000),
+        UINT64_C(1000000000000000),
+        UINT64_C(10000000000000000),
+        UINT64_C(100000000000000000),
+        UINT64_C(1000000000000000000),
+        UINT64_C(10000000000000000000),
+    };
+
     char *pos = buffer;
+    decimal_fp c;
+    uint8_t significantCount;
     
+    // we know that size is always 28, so don't check position
+    (void)size;
+
     if (precision <= 0)
-    precision = 17;
+        precision = 17;
     
     if (value == 0.0) {
         memcpy(buffer, "0.0", 3);
         return 3;
     }
     
-    decimal_fp c = dragonbox_to_decimal(value);
-    
-    uint8_t significantCount = digits_u64(c.significand);
+    c = dragonbox_to_decimal(value);
+    significantCount = digits_u64(c.significand);
 
     // round to precision
     if (significantCount > precision) {
@@ -185,24 +235,26 @@ int jsonp_dtostr(char *buffer, size_t size, double value, int precision) {
         // 0 < exp <= precision
         char * const numberStart = pos;
         pos = to_text_from_integer(pos, c.significand);
-        const uint8_t len = pos - numberStart;
-        const uint8_t decimalPointPosition = c.exponent + 1;
-        if (decimalPointPosition == len) {
-            *pos++ = '.';
-            *pos++ = '0';
-        } else if (decimalPointPosition > len) {
-            const uint8_t appendZeros = decimalPointPosition - len;
-            memset(pos, '0', appendZeros + 2);
-            pos[appendZeros] = '.';
-            pos += appendZeros + 2;
-        } else {
-            // len > decimalPointPosition
-            memmove(numberStart + decimalPointPosition + 1,
-                    numberStart + decimalPointPosition, len - decimalPointPosition);
-            numberStart[decimalPointPosition] = '.';
-            pos++;
-            while (pos[-1] == '0' && pos[-2] != '.')
-                pos--;
+        {
+            const uint8_t len = pos - numberStart;
+            const uint8_t decimalPointPosition = c.exponent + 1;
+            if (decimalPointPosition == len) {
+                *pos++ = '.';
+                *pos++ = '0';
+            } else if (decimalPointPosition > len) {
+                const uint8_t appendZeros = decimalPointPosition - len;
+                memset(pos, '0', appendZeros + 2);
+                pos[appendZeros] = '.';
+                pos += appendZeros + 2;
+            } else {
+                // len > decimalPointPosition
+                memmove(numberStart + decimalPointPosition + 1,
+                        numberStart + decimalPointPosition, len - decimalPointPosition);
+                numberStart[decimalPointPosition] = '.';
+                pos++;
+                while (pos[-1] == '0' && pos[-2] != '.')
+                    pos--;
+            }
         }
     }
 
