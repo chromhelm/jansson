@@ -38,9 +38,10 @@ static const char decimalTable[] = {'0', '1', '2', '3', '4', '5', '6','7','8','9
 typedef struct
 {
     char dd[2];
-}pair;
-#define pair_char(c) ((pair){ c, '\0' })
-#define pair_int(n) ((pair){ decimalTable[n/10], decimalTable[n%10] })
+} pair;
+
+#define pair_char(c) ((pair){ .dd[0]=c, .dd[1]='\0' })
+#define pair_int(n) ((pair){ .dd[0]=decimalTable[n/10], .dd[1]=decimalTable[n%10] })
 
 static const pair digits_dd[100] =
 {
@@ -84,153 +85,159 @@ char* to_text_from_integer(char* b, int64_t i)
     }
     if (n < UINT32_CAST(1e6))
     {
+        u64 f0, f2, f4;
         if (n < UINT32_CAST(1e4))
         {
-            u64 f0 = UINT32_CAST(10 * (1 << 24) / 1e3 + 1) * n;
+            u32 f2_32;
+            f0 = UINT32_CAST(10 * (1 << 24) / 1e3 + 1) * n;
             *(pair*)(b) = digits_fd[f0 >> 24];
             b -= n < UINT32_CAST(1e3);
-            u32 f2 = (f0 & mask24) * 100;
-            *(pair*)(b + 2) = digits_dd[f2 >> 24];
+            f2_32 = (f0 & mask24) * 100;
+            *(pair*)(b + 2) = digits_dd[f2_32 >> 24];
             return b + 4;
         }
-        u64 f0 = UINT64_CAST(10 * (1ull << 32ull)/ 1e5 + 1) * n;
+        f0 = UINT64_CAST(10 * (1ull << 32ull)/ 1e5 + 1) * n;
         *(pair*)(b) = digits_fd[f0 >> 32];
         b -= n < UINT32_CAST(1e5);
-        u64 f2 = (f0 & mask32) * 100;
+        f2 = (f0 & mask32) * 100;
         *(pair*)(b + 2) = digits_dd[f2 >> 32];
-        u64 f4 = (f2 & mask32) * 100;
+        f4 = (f2 & mask32) * 100;
         *(pair*)(b + 4) = digits_dd[f4 >> 32];
         return b + 6;
     }
     if (n < UINT64_CAST(1ull << 32ull))
     {
+        u64 f0, f2, f4, f6, f8;
         if (n < UINT32_CAST(1e8))
         {
-            u64 f0 = UINT64_CAST(10 * (1ull << 48ull) / 1e7 + 1) * n >> 16;
+            f0 = UINT64_CAST(10 * (1ull << 48ull) / 1e7 + 1) * n >> 16;
             *(pair*)(b) = digits_fd[f0 >> 32];
             b -= n < UINT32_CAST(1e7);
-            u64 f2 = (f0 & mask32) * 100;
+            f2 = (f0 & mask32) * 100;
             *(pair*)(b + 2) = digits_dd[f2 >> 32];
-            u64 f4 = (f2 & mask32) * 100;
+            f4 = (f2 & mask32) * 100;
             *(pair*)(b + 4) = digits_dd[f4 >> 32];
-            u64 f6 = (f4 & mask32) * 100;
+            f6 = (f4 & mask32) * 100;
             *(pair*)(b + 6) = digits_dd[f6 >> 32];
             return b + 8;
         }
-        u64 f0 = UINT64_CAST(10 * (1ull << 57ull) / 1e9 + 1) * n;
+        f0 = UINT64_CAST(10 * (1ull << 57ull) / 1e9 + 1) * n;
         *(pair*)(b) = digits_fd[f0 >> 57];
         b -= n < UINT32_CAST(1e9);
-        u64 f2 = (f0 & mask57) * 100;
+        f2 = (f0 & mask57) * 100;
         *(pair*)(b + 2) = digits_dd[f2 >> 57];
-        u64 f4 = (f2 & mask57) * 100;
+        f4 = (f2 & mask57) * 100;
         *(pair*)(b + 4) = digits_dd[f4 >> 57];
-        u64 f6 = (f4 & mask57) * 100;
+        f6 = (f4 & mask57) * 100;
         *(pair*)(b + 6) = digits_dd[f6 >> 57];
-        u64 f8 = (f6 & mask57) * 100;
+        f8 = (f6 & mask57) * 100;
         *(pair*)(b + 8) = digits_dd[f8 >> 57];
         return b + 10;
     }
 
-    // if we get here U must be u64 but some compilers don't know that, so reassign n to a u64 to avoid warnings
-    u32 z = n % UINT32_CAST(1e8);
-    u64 u = n / UINT32_CAST(1e8);
-
-    if (u < UINT32_CAST(1e2))
     {
-        // u can't be 1 digit (if u < 10 it would have been handled above as a 9 digit 32bit number)
-        *(pair*)(b) = digits_dd[u];
-        b += 2;
-    }
-    else if (u < 1e6)
-    {
-        if (u < 1e4)
-        {
-            u64 f0 = UINT32_CAST(10 * (1 << 24) / 1e3 + 1) * u;
-            *(pair*)(b) = digits_fd[f0 >> 24];
-            b -= u < UINT32_CAST(1e3);
-            u64 f2 = (f0 & mask24) * 100;
-            *(pair*)(b + 2) = digits_dd[f2 >> 24];
-            b += 4;
-        }
-        else
-        {
-            u64 f0 = UINT64_CAST(10 * (1ull << 32ull) / 1e5 + 1) * u;
-            *(pair*)(b) = digits_fd[f0 >> 32];
-            b -= u < UINT32_CAST(1e5);
-            u64 f2 = (f0 & mask32) * 100;
-            *(pair*)(b + 2) = digits_dd[f2 >> 32];
-            u64 f4 = (f2 & mask32) * 100;
-            *(pair*)(b + 4) = digits_dd[f4 >> 32];
-            b += 6;
-        }
-    }
-    else if (u < UINT32_CAST(1e8))
-    {
-        u64 f0 = UINT64_CAST(10 * (1ull << 48ull) / 1e7 + 1) * u >> 16;
-        *(pair*)(b) = digits_fd[f0 >> 32];
-        b -= u < UINT32_CAST(1e7);
-        u64 f2 = (f0 & mask32) * 100;
-        *(pair*)(b + 2) = digits_dd[f2 >> 32];
-        u64 f4 = (f2 & mask32) * 100;
-        *(pair*)(b + 4) = digits_dd[f4 >> 32];
-        u64 f6 = (f4 & mask32) * 100;
-        *(pair*)(b + 6) = digits_dd[f6 >> 32];
-        b += 8;
-    }
-    else if (u < UINT64_CAST(1ull << 32ull))
-    {
-        u64 f0 = UINT64_CAST(10 * (1ull << 57ull) / 1e9 + 1) * u;
-        *(pair*)(b) = digits_fd[f0 >> 57];
-        b -= u < UINT32_CAST(1e9);
-        u64 f2 = (f0 & mask57) * 100;
-        *(pair*)(b + 2) = digits_dd[f2 >> 57];
-        u64 f4 = (f2 & mask57) * 100;
-        *(pair*)(b + 4) = digits_dd[f4 >> 57];
-        u64 f6 = (f4 & mask57) * 100;
-        *(pair*)(b + 6) = digits_dd[f6 >> 57];
-        u64 f8 = (f6 & mask57) * 100;
-        *(pair*)(b + 8) = digits_dd[f8 >> 57];
-        b += 10;
-    }
-    else
-    {
-        u32 y = u % UINT32_CAST(1e8);
-        u /= UINT32_CAST(1e8);
-
-        // u is 2, 3, or 4 digits (if u < 10 it would have been handled above)
+        // if we get here U must be u64 but some compilers don't know that, so reassign n to a u64 to avoid warnings
+        u32 z = n % UINT32_CAST(1e8);
+        u64 u = n / UINT32_CAST(1e8);
+        u64 f0, f2, f4, f6, f8;
         if (u < UINT32_CAST(1e2))
         {
+            // u can't be 1 digit (if u < 10 it would have been handled above as a 9 digit 32bit number)
             *(pair*)(b) = digits_dd[u];
             b += 2;
         }
+        else if (u < 1e6)
+        {
+            if (u < 1e4)
+            {
+                f0 = UINT32_CAST(10 * (1 << 24) / 1e3 + 1) * u;
+                *(pair*)(b) = digits_fd[f0 >> 24];
+                b -= u < UINT32_CAST(1e3);
+                f2 = (f0 & mask24) * 100;
+                *(pair*)(b + 2) = digits_dd[f2 >> 24];
+                b += 4;
+            }
+            else
+            {
+                f0 = UINT64_CAST(10 * (1ull << 32ull) / 1e5 + 1) * u;
+                *(pair*)(b) = digits_fd[f0 >> 32];
+                b -= u < UINT32_CAST(1e5);
+                f2 = (f0 & mask32) * 100;
+                *(pair*)(b + 2) = digits_dd[f2 >> 32];
+                f4 = (f2 & mask32) * 100;
+                *(pair*)(b + 4) = digits_dd[f4 >> 32];
+                b += 6;
+            }
+        }
+        else if (u < UINT32_CAST(1e8))
+        {
+            f0 = UINT64_CAST(10 * (1ull << 48ull) / 1e7 + 1) * u >> 16;
+            *(pair*)(b) = digits_fd[f0 >> 32];
+            b -= u < UINT32_CAST(1e7);
+            f2 = (f0 & mask32) * 100;
+            *(pair*)(b + 2) = digits_dd[f2 >> 32];
+            f4 = (f2 & mask32) * 100;
+            *(pair*)(b + 4) = digits_dd[f4 >> 32];
+            f6 = (f4 & mask32) * 100;
+            *(pair*)(b + 6) = digits_dd[f6 >> 32];
+            b += 8;
+        }
+        else if (u < UINT64_CAST(1ull << 32ull))
+        {
+            f0 = UINT64_CAST(10 * (1ull << 57ull) / 1e9 + 1) * u;
+            *(pair*)(b) = digits_fd[f0 >> 57];
+            b -= u < UINT32_CAST(1e9);
+            f2 = (f0 & mask57) * 100;
+            *(pair*)(b + 2) = digits_dd[f2 >> 57];
+            f4 = (f2 & mask57) * 100;
+            *(pair*)(b + 4) = digits_dd[f4 >> 57];
+            f6 = (f4 & mask57) * 100;
+            *(pair*)(b + 6) = digits_dd[f6 >> 57];
+            f8 = (f6 & mask57) * 100;
+            *(pair*)(b + 8) = digits_dd[f8 >> 57];
+            b += 10;
+        }
         else
         {
-            u64 f0 = UINT32_CAST(10 * (1 << 24) / 1e3 + 1) * u;
-            *(pair*)(b) = digits_fd[f0 >> 24];
-            b -= u < UINT32_CAST(1e3);
-            u32 f2 = (f0 & mask24) * 100;
-            *(pair*)(b + 2) = digits_dd[f2 >> 24];
-            b += 4;
+            u32 y = u % UINT32_CAST(1e8);
+            u /= UINT32_CAST(1e8);
+
+            // u is 2, 3, or 4 digits (if u < 10 it would have been handled above)
+            if (u < UINT32_CAST(1e2))
+            {
+                *(pair*)(b) = digits_dd[u];
+                b += 2;
+            }
+            else
+            {
+                u32 f2_32;
+                f0 = UINT32_CAST(10 * (1 << 24) / 1e3 + 1) * u;
+                *(pair*)(b) = digits_fd[f0 >> 24];
+                b -= u < UINT32_CAST(1e3);
+                f2_32 = (f0 & mask24) * 100;
+                *(pair*)(b + 2) = digits_dd[f2_32 >> 24];
+                b += 4;
+            }
+            // do 8 digits
+            f0 = (UINT64_CAST((1ull << 48ull) / 1e6 + 1) * y >> 16) + 1;
+            *(pair*)(b) = digits_dd[f0 >> 32];
+            f2 = (f0 & mask32) * 100;
+            *(pair*)(b + 2) = digits_dd[f2 >> 32];
+            f4 = (f2 & mask32) * 100;
+            *(pair*)(b + 4) = digits_dd[f4 >> 32];
+            f6 = (f4 & mask32) * 100;
+            *(pair*)(b + 6) = digits_dd[f6 >> 32];
+            b += 8;
         }
         // do 8 digits
-        u64 f0 = (UINT64_CAST((1ull << 48ull) / 1e6 + 1) * y >> 16) + 1;
+        f0 = (UINT64_CAST((1ull << 48ull) / 1e6 + 1) * z >> 16) + 1;
         *(pair*)(b) = digits_dd[f0 >> 32];
-        u64 f2 = (f0 & mask32) * 100;
+        f2 = (f0 & mask32) * 100;
         *(pair*)(b + 2) = digits_dd[f2 >> 32];
-        u64 f4 = (f2 & mask32) * 100;
+        f4 = (f2 & mask32) * 100;
         *(pair*)(b + 4) = digits_dd[f4 >> 32];
-        u64 f6 = (f4 & mask32) * 100;
+        f6 = (f4 & mask32) * 100;
         *(pair*)(b + 6) = digits_dd[f6 >> 32];
-        b += 8;
     }
-    // do 8 digits
-    u64 f0 = (UINT64_CAST((1ull << 48ull) / 1e6 + 1) * z >> 16) + 1;
-    *(pair*)(b) = digits_dd[f0 >> 32];
-    u64 f2 = (f0 & mask32) * 100;
-    *(pair*)(b + 2) = digits_dd[f2 >> 32];
-    u64 f4 = (f2 & mask32) * 100;
-    *(pair*)(b + 4) = digits_dd[f4 >> 32];
-    u64 f6 = (f4 & mask32) * 100;
-    *(pair*)(b + 6) = digits_dd[f6 >> 32];
     return b + 8;
 }
