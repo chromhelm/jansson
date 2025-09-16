@@ -26,63 +26,9 @@ typedef struct {
     int exponent;
 } decimal_fp;
 
-static inline bool is_right_endpoint_integer_shorter_interval(int binary_exponent);
-
-static inline bool is_left_endpoint_integer_shorter_interval(int binary_exponent);
-
-static inline uint32_t rotr32(uint32_t n, uint8_t r) {
-    r &= 31;
-    return (n >> r) | (n << ((32 - r) & 31));
-}
-
-static inline uint64_t rotr64(uint64_t n, uint8_t r) {
-    r &= 63;
-    return (n >> r) | (n << ((64 - r) & 63));
-}
-
-static_assert(((int32_t)(-1) >> 1) == (int32_t)(-1) &&
-                  ((int16_t)(-1) >> 1) == (int16_t)(-1),
-              "right-shift for signed integers must be arithmetic");
-
-// For const computation.
-// Returns -1 when n = 0.
-static inline int floor_log2(uint64_t n) {
-    int count = -1;
-    while (n != 0) {
-        ++count;
-        n >>= 1;
-    }
-    return count;
-}
-
-// Followings assume int is of at least 32-bits.
-static_assert(INT_MAX >= 0x7fffffff);
-
-static inline int floor_log10_pow2(int e) {
-    assert(-2620 <= e && e <= 2620);
-    return (e * 315653) >> 20;
-}
-
-static inline int floor_log2_pow10(int e) {
-    // Formula itself holds on [-4003,4003]; [-1233,1233] is to ensure no overflow.
-    assert(-1233 <= e && e <= 1233);
-    return (e * 1741647) >> 19;
-}
-
-static inline int floor_log10_pow2_minus_log10_4_over_3(int e) {
-    assert(-2985 <= e && e <= 2936);
-    return (e * 631305 - 261663) >> 21;
-}
-
-static inline int floor_log5_pow2(int e) {
-    assert(-1831 <= e && e <= 1831);
-    return (e * 225799) >> 19;
-}
-
-static inline int floor_log5_pow2_minus_log5_3(int e) {
-    assert(-3543 <= e && e <= 2427);
-    return (e * 451597 - 715764) >> 20;
-}
+#define floor_log10_pow2(e) (((e) * 315653) >> 20)
+#define floor_log2_pow10(e) (((e) * 1741647) >> 19)
+#define floor_log10_pow2_minus_log10_4_over_3(e) (((e) * 631305 - 261663) >> 21)
 
 typedef struct {
     uint64_t high;
@@ -100,10 +46,10 @@ static inline uint64_t umul64(uint32_t x, uint32_t y) { return x * (uint64_t)(y)
 
 // Get 128-bit result of multiplication of two 64-bit unsigned integers.
 static inline uint128 umul128(uint64_t x, uint64_t y) {
-    uint32_t const a = x >> 32;
-    uint32_t const b = x;
-    uint32_t const c = y >> 32;
-    uint32_t const d = y;
+    uint32_t const a = (uint32_t)(x >> 32);
+    uint32_t const b = (uint32_t)(x);
+    uint32_t const c = (uint32_t)(y >> 32);
+    uint32_t const d = (uint32_t)(y);
 
     uint64_t const ac = umul64(a, c);
     uint64_t const bc = umul64(b, c);
@@ -119,10 +65,10 @@ static inline uint128 umul128(uint64_t x, uint64_t y) {
 // Get high half of the 128-bit result of multiplication of two 64-bit unsigned
 // integers.
 static inline uint64_t umul128_upper64(uint64_t x, uint64_t y) {
-    uint32_t const a = x >> 32;
-    uint32_t const b = x;
-    uint32_t const c = y >> 32;
-    uint32_t const d = y;
+    uint32_t const a = (uint32_t)(x >> 32);
+    uint32_t const b = (uint32_t)(x);
+    uint32_t const c = (uint32_t)(y >> 32);
+    uint32_t const d = (uint32_t)(y);
 
     uint64_t const ac = umul64(a, c);
     uint64_t const bc = umul64(b, c);
@@ -163,23 +109,17 @@ static inline uint128 umul192_lower128(uint64_t x, uint128 y) {
                      .low = high_low.low};
 }
 
-// Get lower 64-bits of multiplication of a 32-bit unsigned integer and a 64-bit
-// unsigned integer.
-static inline uint64_t umul96_lower64(uint32_t x, uint64_t y) {
-    return (x * y) & UINT64_C(0xffffffffffffffff);
-}
-
-static inline uint64_t compute_power_u64(uint8_t k, uint64_t a) {
-    int e = k;
-    uint64_t p = 1;
-    while (e) {
-        if (e % 2)
-            p *= a;
-        e /= 2;
-        a *= a;
-    }
-    return p;
-}
+#define compute_power(T, k, a) ({ \
+    int e = (k); \
+    __typeof__(a) _a = (a); \
+    T p = 1; \
+    while (e) { \
+        if (e % 2) \
+            p *= _a; \
+        e /= 2; \
+        _a *= _a; \
+    } \
+    p; })
 
 typedef struct {
     uint32_t integer_part;
@@ -196,12 +136,12 @@ typedef struct {
     bool is_integer;
 } compute_mul_parity_result;
 
-static const int total_bits = 64;
-static const int significand_bits = 52;
-static const int exponent_bits = 11;
-static const int min_exponent = -1022;
-static const int exponent_bias = -1023;
-static const int min_k = -292;
+#define total_bits 64
+#define significand_bits 52
+#define exponent_bits 11
+#define min_exponent -1022
+#define exponent_bias -1023
+#define min_k -292
 
 // struct float_format {
 
@@ -242,34 +182,24 @@ static inline uint64_t compute_round_up_for_shorter_interval_case(uint128 cache,
     return ((cache.high >> (total_bits - significand_bits - 2 - beta)) + 1) / 2;
 }
 
-static inline int count_factors_u64(int a, uint64_t n) {
-    int c = 0;
-    assert(a > 1);
-    while (n % a == 0) {
-        n /= a;
-        ++c;
-    }
-    return c;
-}
-
-static inline uint64_t divide_by_pow10(const int N, const uint64_t n_max, uint64_t n) {
-    assert(N >= 0);
-
-    // Specialize for 64-bit division by 10.
-    // Without the bound on n_max (which compilers these days never leverage), the
-    // minimum needed amount of shift is larger than 64.
-    if (N == 1 && n_max <= UINT64_C(4611686018427387908)) {
-        return umul128_upper64(n, UINT64_C(1844674407370955162));
-    }
-    // Specialize for 64-bit division by 1000.
-    // Without the bound on n_max (which compilers these days never leverage), the
-    // smallest magic number for this computation does not fit into 64-bits.
-    else if (N == 3 && n_max <= UINT64_C(15534100272597517998)) {
-        return umul128_upper64(n, UINT64_C(4722366482869645214)) >> 8;
-    } else {
-        return n / compute_power_u64(N, 10);
-    }
-}
+#define divide_by_pow10(N, n_max, n) ({ \
+    static_assert(N >= 0); \
+    uint64_t res; \
+    /* Specialize for 64-bit division by 10.
+       Without the bound on n_max (which compilers these days never leverage), the
+       minimum needed amount of shift is larger than 64.*/ \
+    if (N == 1 && n_max <= UINT64_C(4611686018427387908)) { \
+        res = umul128_upper64(n, UINT64_C(1844674407370955162)); \
+    } \
+    /* Specialize for 64-bit division by 1000.
+       Without the bound on n_max (which compilers these days never leverage), the
+       smallest magic number for this computation does not fit into 64-bits. */ \
+    else if (N == 3 && n_max <= UINT64_C(15534100272597517998)) { \
+        res = umul128_upper64(n, UINT64_C(4722366482869645214)) >> 8; \
+    } else { \
+        res = n / compute_power(uint64_t, N, 10); \
+    } \
+    res; })
 
 static const uint128 cache_table[619] = {
     {UINT64_C(0xff77b1fcbebcdc4f), UINT64_C(0x25e8e89c13bb0f7b)},
@@ -894,93 +824,44 @@ static const uint128 cache_table[619] = {
 
 static const uint32_t divide_magic_number[2] = {6554, 656};
 
-static_assert(__SIZEOF_FLOAT__ == 4,
-              "simple_dragonbox: float may not be IEEE-754 binary32");
 static_assert(__SIZEOF_DOUBLE__ == 8,
               "simple_dragonbox: double may not be IEEE-754 binary64");
-
-static inline void reverse(char *begin, char *end) {
-    while (begin < --end) {
-        char tmp = *begin;
-        *begin++ = *end;
-        *end = tmp;
-    }
-}
-
 static_assert(sizeof(uint64_t) == sizeof(double));
 
-static inline int min(int x, int y) { return x < y ? x : y; }
-static inline int max(int x, int y) { return x > y ? x : y; }
+#define kappa 2
+#define carrier_bits 64
+#define case_shorter_interval_left_endpoint_lower_threshold 2
+#define case_shorter_interval_left_endpoint_upper_threshold 3
+#define case_shorter_interval_right_endpoint_lower_threshold 0
+#define case_shorter_interval_right_endpoint_upper_threshold 3
+#define shorter_interval_tie_lower_threshold -77
+#define shorter_interval_tie_upper_threshold -77
 
-// static const int kappa = floor_log10_pow2(carrier_bits - significand_bits - 2) - 1;
-static const int kappa = 2;
+#define is_left_endpoint_integer_shorter_interval(binary_exponent) ((binary_exponent) >= case_shorter_interval_left_endpoint_lower_threshold && \
+           (binary_exponent) <= case_shorter_interval_left_endpoint_upper_threshold)
 
-// static const int min_k =
-//     min(-floor_log10_pow2_minus_log10_4_over_3(max_exponent - significand_bits),
-//         -floor_log10_pow2(max_exponent - significand_bits) + kappa);
-
-// We do invoke shorter_interval_case for exponent == min_exponent case;
-// so we should not add 1 here.
-// static const int max_k =
-//     max(-floor_log10_pow2_minus_log10_4_over_3(min_exponent - significand_bits /*+
-//     1*/),
-//         -floor_log10_pow2(min_exponent - significand_bits) + kappa);
-
-static const int case_shorter_interval_left_endpoint_lower_threshold = 2;
-
-// static const int case_shorter_interval_left_endpoint_upper_threshold = 2 +
-// floor_log2(compute_power_u64(count_factors_u64(5, (UINT64_C(1) << (significand_bits +
-// 2)) - 1) + 1, 10) / 3);
-static const int case_shorter_interval_left_endpoint_upper_threshold = 3;
-
-static const int case_shorter_interval_right_endpoint_lower_threshold = 0;
-
-// static const int case_shorter_interval_right_endpoint_upper_threshold =
-//     2 +
-//     floor_log2(
-//         compute_power_u64(count_factors_u64(5, (UINT64_C(1) << (significand_bits + 1))
-//         + 1) + 1,
-//             10) /
-//         3);
-static const int case_shorter_interval_right_endpoint_upper_threshold = 3;
-
-// static const int shorter_interval_tie_lower_threshold =
-//     -floor_log5_pow2_minus_log5_3(significand_bits + 4) - 2 - significand_bits;
-
-static const int shorter_interval_tie_lower_threshold = -77;
-
-// static const int shorter_interval_tie_upper_threshold =
-//     -floor_log5_pow2(significand_bits + 2) - 2 - significand_bits;
-static const int shorter_interval_tie_upper_threshold = -77;
-
-// static_assert(kappa >= 1);
-// static_assert(carrier_bits >= significand_bits + 2 + floor_log2_pow10(kappa + 1));
-// static_assert(min_k >= min_k && max_k <= max_k);
-
-static inline bool check_divisibility_and_divide_by_pow10(int N, uint64_t *n) {
-    // Make sure the computation for max_n does not overflow.
-    
-    uint32_t const magic_number = divide_magic_number[N - 1];
-    uint32_t const prod = (uint32_t)(*n * magic_number);
-    
-    uint32_t const mask = (uint32_t)((UINT32_C(1) << 16) - 1);
-    bool const result = ((prod & mask) < magic_number);
-
-    assert(N + 1 <= floor_log10_pow2(carrier_bits));
-    assert(*n <= compute_power_u64(N + 1, UINT64_C(10)));
-
-    *n = (uint64_t)(prod >> 16);
-    return result;
-}
+#define check_divisibility_and_divide_by_pow10(N, n) ({ \
+    /* Make sure the computation for max_n does not overflow. */ \
+    \
+    uint32_t const magic_number = divide_magic_number[N - 1]; \
+    uint32_t const prod = (uint32_t)(n * magic_number); \
+    \
+    uint32_t const mask = (uint32_t)((UINT32_C(1) << 16) - 1); \
+    bool const result = ((prod & mask) < magic_number); \
+    \
+    static_assert(N + 1 <= floor_log10_pow2(carrier_bits)); \
+    assert(n <= compute_power(uint64_t, N + 1, UINT64_C(10))); \
+    \
+    n = (uint64_t)(prod >> 16); \
+    result; })
 
 // Compute floor(n / 10^N) for small n and N.
 // Precondition: n <= 10^(N+1)
-static inline uint64_t small_division_by_pow10(int N, uint64_t n) {
-    // Make sure the computation for max_n does not overflow.
-    assert(N + 1 <= floor_log10_pow2(carrier_bits));
-    assert(n <= compute_power_u64(N + 1, UINT64_C(10)));
-    return (uint64_t)((n * divide_magic_number[N - 1]) >> 16);
-}
+#define small_division_by_pow10(N, n) ({ \
+    /* Make sure the computation for max_n does not overflow. */ \
+    static_assert(N + 1 <= floor_log10_pow2(carrier_bits)); \
+    static_assert(n <= compute_power(uint64_t N + 1, UINT64_C(10))); \
+    (uint64_t)(((n) * divide_magic_number[N - 1]) >> 16); })
 
 typedef struct {
     uint64_t significand;
@@ -993,10 +874,7 @@ static inline binary_fp decompose_float(double x) {
     memcpy(&bits, &x, sizeof(x));
     return (binary_fp){
         .significand = (uint64_t)(bits & ((UINT64_C(1) << significand_bits) - 1)),
-        // exponent
         .exponent = (int)(bits >> significand_bits & ((1u << exponent_bits) - 1)),
-        // is_negative
-        // .is_negative = (bool)(bits >> (significand_bits + exponent_bits))
     };
 }
 
@@ -1131,8 +1009,8 @@ static inline decimal_fp to_decimal_intern(uint64_t binary_significand,
         // Step 2: Try larger divisor; remove trailing zeros if necessary.
         //////////////////////////////////////////////////////////////////////
 
-        uint64_t const big_divisor = compute_power_u64(kappa + 1, UINT64_C(10));
-        uint64_t const small_divisor = compute_power_u64(kappa, UINT64_C(10));
+        uint64_t const big_divisor = compute_power(uint64_t, kappa + 1, UINT64_C(10));
+        uint64_t const small_divisor = compute_power(uint64_t, kappa, UINT64_C(10));
 
         // Using an upper bound on zi, we might be able to optimize the division
         // better than the compiler; we are computing zi / big_divisor here.
@@ -1182,7 +1060,7 @@ static inline decimal_fp to_decimal_intern(uint64_t binary_significand,
 
             // Is dist divisible by 10^kappa?
             bool const divisible_by_small_divisor =
-                check_divisibility_and_divide_by_pow10(kappa, &dist);
+                check_divisibility_and_divide_by_pow10(kappa, dist);
 
             // Add dist / 10^kappa to the significand.
             decimal_significand += dist;
@@ -1214,16 +1092,6 @@ static inline decimal_fp to_decimal_intern(uint64_t binary_significand,
             };
         }
     }
-}
-
-static inline bool is_right_endpoint_integer_shorter_interval(int binary_exponent) {
-    return binary_exponent >= case_shorter_interval_right_endpoint_lower_threshold &&
-           binary_exponent <= case_shorter_interval_right_endpoint_upper_threshold;
-}
-
-static inline bool is_left_endpoint_integer_shorter_interval(int binary_exponent) {
-    return binary_exponent >= case_shorter_interval_left_endpoint_lower_threshold &&
-           binary_exponent <= case_shorter_interval_left_endpoint_upper_threshold;
 }
 
 decimal_fp dragonbox_to_decimal(double x) {
