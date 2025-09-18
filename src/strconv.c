@@ -222,7 +222,7 @@ int jsonp_dtostr(char *buffer, size_t size, double value, int precision) {
                 pos--;
         }
         *pos++ = 'e';
-        pos = to_text_from_integer(pos, c.exponent);
+        pos = to_text_from_10bit(pos, c.exponent);
     } else if (c.exponent < 0) {
         //  -5 <= exp < 0
         const uint8_t prependZeros = (-c.exponent) + 1;

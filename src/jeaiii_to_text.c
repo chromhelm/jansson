@@ -29,9 +29,11 @@ SOFTWARE.
 
 typedef uint64_t u64;
 typedef uint32_t u32;
+typedef uint16_t u16;
 
 #define UINT64_CAST(n) ((uint64_t)(n))
 #define UINT32_CAST(n) ((uint32_t)(n))
+#define UINT16_CAST(n) ((uint16_t)(n))
 
 static const char decimalTable[] = {'0', '1', '2', '3', '4', '5', '6','7','8','9'};
 
@@ -240,4 +242,25 @@ char* to_text_from_integer(char* b, int64_t i)
         *(pair*)(b + 6) = digits_dd[f6 >> 32];
     }
     return b + 8;
+}
+
+char* to_text_from_10bit(char* b, int16_t i)
+{
+    // convert bool to int before test with unary + to silence warning if T happens to be bool
+    uint16_t const n = +i < 0 ? *b++ = '-', (uint16_t)(0) - (uint16_t)(i) : (uint16_t)(i);
+
+    if (n < (u32)(1e2))
+    {
+        *(pair*)(b) = digits_fd[n];
+        return n < 10 ? b + 1 : b + 2;
+    }
+    {
+        u32 f0, f2;
+        f0 = (u32)(10 * (1 << 24) / 1e3 + 1) * n;
+        *(pair*)(b) = digits_fd[f0 >> 24];
+        b -= n < (u32)(1e3);
+        f2 = (f0 & mask24) * 100;
+        *(pair*)(b + 2) = digits_dd[f2 >> 24];
+        return b + 4;
+    }
 }

@@ -32,4 +32,6 @@ SOFTWARE.
 
 char* to_text_from_integer(char* b, int64_t i);
 
+char* to_text_from_10bit(char* b, int16_t i);
+
 #endif // JEAIII_TO_TEXT_H_
